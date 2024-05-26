@@ -13,6 +13,9 @@ urlpatterns = [
     # ======= Accounts URL's ======= #
     path('accounts/', include('accounts.urls')),
 
+    # ======= Accounts URL's ======= #
+    path('forms/', include('forms.urls')),
+
     # ========== API schema generator ========== #
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path(

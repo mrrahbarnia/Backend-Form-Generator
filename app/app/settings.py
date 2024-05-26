@@ -1,4 +1,5 @@
 from pathlib import Path
+import os
 from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -82,6 +83,12 @@ DATABASES = {
     }
 }
 
+# MongoDB config
+MONGO_DB_NAME = 'mongo'
+MONGO_USERNAME = 'root'
+MONGO_PASSWORD = 'root'
+MONGO_HOST = 'mongo'
+MONGO_PORT = 27017
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
@@ -121,11 +128,11 @@ STATIC_URL = 'static/'
 MEDIA_URL = 'media/'
 
 STATIC_ROOT = '/vol/web/static'
-MEDIA_ROOT = '/vol/web/media'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Rest framework config
 REST_FRAMEWORK = {
-    'EXCEPTION_HANDLER': 'core.exceptions.exceptions.custom_exception_handler', 
+    # 'EXCEPTION_HANDLER': 'core.exceptions.exceptions.custom_exception_handler',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication', 
@@ -145,3 +152,7 @@ SIMPLE_JWT = {
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Validating icon size
+MAX_ICON_SIZE_MB = 2
+SUPPORTED_ICON_FORMAT = ['.png']
