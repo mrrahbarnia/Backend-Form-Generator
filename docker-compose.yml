@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./Dockerfile.dev
+    container_name: backend
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - '8000:8000'
+    volumes:
+      - ./app:/app/
+    depends_on:
+      - mongo
+    restart: always
+  
+  mongo:
+    image: mongo:latest
+    container_name: mongo
+    restart: always
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=root
+      - MONGO_INITDB_DATABASE=mongo
+      - MONGO_INITDB_USERNAME=mongo
+      - MONGO_INITDB_PASSWORD=changeme
+    volumes:
+      - mongo-dev-db:/data/db
+
+volumes:
+  mongo-dev-db:
