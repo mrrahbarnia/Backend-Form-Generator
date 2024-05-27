@@ -11,7 +11,10 @@ from core.services import (
     validate_icon_dimensions,
     get_form_groups,
     create_form_collection,
-    validate_system_name
+    get_forms_by_form_groups_name,
+    delete_form_from_form_group,
+    validate_system_name,
+    update_form_group_name
 )
 
 
@@ -48,12 +51,85 @@ class CreateFormCollectionApi(APIView):
             user=input_serializer.validated_data.get('user')
         )
 
-        return Response('OK')
+        return Response(
+            {'message': 'Form created successfully'},
+            status=status.HTTP_201_CREATED
+        )
+
+class DeleteFormGroupsDocumentApi(APIView):
+    """
+    Delete a specific form from a form_group only by admin users.
+    """
+    permission_classes = [permissions.IsAdminUser]
+    
+    def delete(
+            self, request: Request, group_name: str | None = None,
+            id: int | None = None,  *args, **kwargs
+    ) -> Response:
+
+        delete_form_from_form_group(
+            group_name=group_name,
+            id=id
+        )
+
+        return Response(
+            {'message': 'Group deleted successfully'},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+
+class RetrieveFormGroupsDocumentApi(APIView):
+    """
+    List all forms belong to a specific form_groups
+    collection which given by the url parameter.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    class OutputRetrieveFormGroupsSerializer(serializers.Serializer):
+        _id = serializers.CharField()
+        name = serializers.CharField()
+        system_name = serializers.CharField()
+    
+    @extend_schema(responses=OutputRetrieveFormGroupsSerializer)
+    def get(
+        self, request: Request, group_name: str | None = None, *args, **kwargs
+    ) -> Response:
+        forms = get_forms_by_form_groups_name(
+            group_name=group_name
+        )
+        output_serializer = self.OutputRetrieveFormGroupsSerializer(forms, many=True).data
+        return Response(output_serializer, status=status.HTTP_200_OK)
+
+
+class UpdateFormGroupApi(APIView):
+    """
+    Updating form_groups name and group field for
+    all forms belong to that only by admin users.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    class InputUpdateFormGroupSerializer(serializers.Serializer):
+        new_name = serializers.CharField()
+
+    @extend_schema(request=InputUpdateFormGroupSerializer)
+    def post(self, request: Request, group_name: str, *args, **kwargs) -> Response:
+        input_serializer = self.InputUpdateFormGroupSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        update_form_group_name(
+            old_name=group_name,
+            new_name=input_serializer.validated_data.get('new_name')
+        )
+
+        return Response(
+            {'message': 'Group name updated in form_groups collection and all forms belong to this group.'},
+            status=status.HTTP_200_OK
+        )
+
 
 
 class FormGroupListApi(APIView):
     """
-    listing all form groups.
+    listing all form groups with unauthenticated users.
     """
 
     def get(self, request: Request, *args, **kwargs) -> Response:

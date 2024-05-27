@@ -128,7 +128,7 @@ STATIC_URL = 'static/'
 MEDIA_URL = 'media/'
 
 STATIC_ROOT = '/vol/web/static'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = '/vol/web/media'
 
 # Rest framework config
 REST_FRAMEWORK = {
