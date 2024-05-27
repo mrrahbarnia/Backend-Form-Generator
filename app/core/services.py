@@ -16,7 +16,7 @@ from pymongo import MongoClient
 MONGO_DB = settings.MONGO_DB_NAME
 
 # =============== MongoDB =============== #
-def connect_db() -> MongoClient:
+def connect_db(*, db: str) -> MongoClient:
     """
     Connecting to MongoDB client.
     """
@@ -25,28 +25,33 @@ def connect_db() -> MongoClient:
     db_host = settings.MONGO_HOST
     db_port = settings.MONGO_PORT
 
-    client = MongoClient(f"mongodb://{db_username}:{db_pass}@{db_host}:{db_port}/")
-    return client
+    if db == 'prod':
+        client = MongoClient(f"mongodb://{db_username}:{db_pass}@{db_host}:{db_port}/")
+        my_db = client[MONGO_DB]
+        return my_db
+    
+    if db == 'test':
+        client = MongoClient(f"mongodb://{db_username}:{db_pass}@{db_host}:{db_port}/")
+        test_db = client['test']
+        return test_db
 
-def create_sys_name_collection(*, system_name: str):
-    """
-    Creating collections for each system names.
-    """
-    client = connect_db()
-    my_db = client[MONGO_DB]
-    system_name_collection = my_db[system_name]
-    system_name_collection
+# def create_sys_name_collection(*, db: str, system_name: str):
+#     """
+#     Creating collections for each system names.
+#     """
+#     my_db = connect_db(db=db)
+#     system_name_collection = my_db[system_name]
+#     system_name_collection
 
 def create_form_collection(
-        *, name: str, system_name: str, group: str, validator: list,
+        *, db: str,  name: str, system_name: str, group: str, validator: list,
         meta_data: list, color: str, icon: str, user: User
 ):
     """
     Creating form collection.
     """
     # TODO: Create a storage for storing icons.
-    client = connect_db()
-    my_db = client[MONGO_DB]
+    my_db = connect_db(db=db)
     forms_collection = my_db['forms']
     file_id = None
     object_id = ObjectId()
@@ -67,7 +72,7 @@ def create_form_collection(
             code='unique_constraint_system_name'
         )
 
-    create_sys_name_collection(system_name=system_name)
+    # create_sys_name_collection(db=db, system_name=system_name)
 
     data = {
         'name': name,
@@ -81,14 +86,13 @@ def create_form_collection(
     }
     object = forms_collection.insert_one(data)
     object_id = object.inserted_id
-    add_to_form_group(group=group, id=object_id)
+    add_to_form_group(db=db, group=group, id=object_id)
 
-def add_to_form_group(*, group: str, id: ObjectId):
+def add_to_form_group(*, db: str, group: str, id: ObjectId):
     """
     Append form groups to form_group collection.
     """
-    client = connect_db()
-    my_db = client[MONGO_DB]
+    my_db = connect_db(db=db)
     form_groups_collection = my_db['form_groups']
     if group in form_groups_collection.distinct('name'):
         form_groups_collection.update_one({'name': group}, {'$push': {'ids': id}})
@@ -97,21 +101,19 @@ def add_to_form_group(*, group: str, id: ObjectId):
         ids.append(id)
         form_groups_collection.insert_one({'name': group, 'ids': ids})
 
-def get_form_groups() -> list[str]:
+def get_form_groups(*, db: str) -> list[str]:
     """
     Return list of groups from form_group collection.
     """
-    client = connect_db()
-    my_db = client[MONGO_DB]
+    my_db = connect_db(db=db)
     form_groups_collection = my_db['form_groups']
     return form_groups_collection.distinct('name')
 
-def get_forms_by_form_groups_name(*, group_name: str):
+def get_forms_by_form_groups_name(*, db: str, group_name: str):
     """
     Return a list of forms with a specific form_group name.
     """
-    client = connect_db()
-    my_db = client[MONGO_DB]
+    my_db = connect_db(db=db)
     form_groups_collection = my_db['form_groups']
     form_collection = my_db['forms']
     form_group = form_groups_collection.find_one({'name': group_name})
@@ -125,14 +127,13 @@ def get_forms_by_form_groups_name(*, group_name: str):
             {'message': 'There is no group exist with the provided group_name.'}
         )
 
-def delete_form_from_form_group(*, group_name: str, id: str):
+def delete_form_from_form_group(*, db: str, group_name: str, id: str):
     """
     Deleting a form with provided id from form
     group with provided group_name.after that automatically
     set group to empty for that document.
     """
-    client = connect_db()
-    my_db = client[MONGO_DB]
+    my_db = connect_db(db=db)
     form_groups_collection = my_db['form_groups']
     forms_collection = my_db['forms']
     if group:= form_groups_collection.find_one({'name': group_name}):
@@ -149,13 +150,12 @@ def delete_form_from_form_group(*, group_name: str, id: str):
             {'message': 'There is no group with the provided group name.'}
         )
 
-def update_form_group_name(*, old_name: str, new_name: str):
+def update_form_group_name(*, db: str, old_name: str, new_name: str):
     """
     Updating a form group name with the provided new name.
     Also updating all forms with the provided old name.
     """
-    client = connect_db()
-    my_db = client[MONGO_DB]
+    my_db = connect_db(db=db)
     form_groups_collection = my_db['form_groups']
     forms_collection = my_db['forms']
 

@@ -41,6 +41,7 @@ class CreateFormCollectionApi(APIView):
         )
         input_serializer.is_valid(raise_exception=True)
         create_form_collection(
+            db='prod',
             name=input_serializer.validated_data.get('name'),
             system_name=input_serializer.validated_data.get('system_name'),
             group=input_serializer.validated_data.get('group'),
@@ -68,6 +69,7 @@ class DeleteFormGroupsDocumentApi(APIView):
     ) -> Response:
 
         delete_form_from_form_group(
+            db='prod',
             group_name=group_name,
             id=id
         )
@@ -95,7 +97,7 @@ class RetrieveFormGroupsDocumentApi(APIView):
         self, request: Request, group_name: str | None = None, *args, **kwargs
     ) -> Response:
         forms = get_forms_by_form_groups_name(
-            group_name=group_name
+            db='prod', group_name=group_name
         )
         output_serializer = self.OutputRetrieveFormGroupsSerializer(forms, many=True).data
         return Response(output_serializer, status=status.HTTP_200_OK)
@@ -116,6 +118,7 @@ class UpdateFormGroupApi(APIView):
         input_serializer = self.InputUpdateFormGroupSerializer(data=request.data)
         input_serializer.is_valid(raise_exception=True)
         update_form_group_name(
+            db='prod',
             old_name=group_name,
             new_name=input_serializer.validated_data.get('new_name')
         )
@@ -134,7 +137,7 @@ class FormGroupListApi(APIView):
 
     def get(self, request: Request, *args, **kwargs) -> Response:
         try:
-            groups_list = get_form_groups()
+            groups_list = get_form_groups(db='prod')
 
             return Response(groups_list, status=status.HTTP_200_OK)
         except Exception as ex:
