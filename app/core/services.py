@@ -1,9 +1,13 @@
 import re
+import gridfs
+import uuid
 
 from pathlib import Path
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.contrib.auth.models import User
+from django.core.files.images import get_image_dimensions
+from rest_framework.exceptions import APIException
 
 from pymongo import MongoClient
 
@@ -22,10 +26,18 @@ def connect_db() -> MongoClient:
     client = MongoClient(f"mongodb://{db_username}:{db_pass}@{db_host}:{db_port}/")
     return client
 
+def create_sys_name_collection(*, system_name: str):
+    """
+    Creating collections for each system names.
+    """
+    client = connect_db()
+    my_db = client[MONGO_DB]
+    system_name_collection = my_db[system_name]
+    system_name_collection
 
 def create_form_collection(
         *, name: str, system_name: str, group: str, validator: list,
-        meta_data: list, color: str, icon: str
+        meta_data: list, color: str, icon: str, user: User
 ):
     """
     Creating form collection.
@@ -33,6 +45,25 @@ def create_form_collection(
     client = connect_db()
     my_db = client[MONGO_DB]
     forms_collection = my_db['forms']
+    file_id = None
+
+    if icon:
+        fs = gridfs.GridFS(my_db)
+        file_id = fs.put(icon, filename=str(uuid.uuid4()).split('-')[0])
+
+    if forms_collection.find_one({'name': name}) is not None:
+        raise APIException(
+            'Name must be unique.',
+            code='unique_constraint_name'
+        )
+
+    if forms_collection.find_one({'system_name': system_name}) is not None:
+        raise APIException(
+            'System name must be unique.',
+            code='unique_constraint_system_name'
+        )
+
+    create_sys_name_collection(system_name=system_name)
 
     data = {
         'name': name,
@@ -40,19 +71,11 @@ def create_form_collection(
         'group': group,
         'validator': validator,
         'meta_data': meta_data,
-        'color': color
-        # 'icon': icon
-        # 'user': user.pk
+        'color': color,
+        'icon': file_id,
+        'user_id': user.pk
     }
     forms_collection.insert_one(data)
-
-
-
-def create_sys_name_collection():
-    """
-    Creating collections for each system names.
-    """
-    pass
 
 def add_to_form_group(*, group: str):
     """
@@ -89,17 +112,20 @@ def validate_icon_format(icon: str):
             code='unsupported_icon_format'
         )
 
-def validate_icon_size(icon: str):
-    """
-    Validating size of the icon.
-    """
-    max_size = float(settings.MAX_ICON_SIZE_MB)
 
-    if icon.size > max_size * 1024 * 1024:
+def validate_icon_dimensions(icon: str):
+    """
+    Validating icon by their dimensions.
+    """
+    max_width = settings.MAX_ICON_WIDTH
+    max_height = settings.MAX_ICON_HEIGHT
+    width, height = get_image_dimensions(icon)
+    if width > max_width or height > max_height:
         raise ValidationError(
-            f"Icon size must be less than {max_size}MB",
-            code='icon_size'
+            f'Maximum dimensions of icon is {max_width}*{max_height}.',
+            code='icon_dimension_exceeded'
         )
+
 
 def validate_system_name(system_name: str):
     """

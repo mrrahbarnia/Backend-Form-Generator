@@ -135,7 +135,9 @@ REST_FRAMEWORK = {
     # 'EXCEPTION_HANDLER': 'core.exceptions.exceptions.custom_exception_handler',
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication', 
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.BasicAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
     ),
     'COERCE_DECIMAL_TO_STRING': False,
 }
@@ -154,5 +156,6 @@ SIMPLE_JWT = {
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Validating icon size
-MAX_ICON_SIZE_MB = 2
+MAX_ICON_WIDTH = 1000
+MAX_ICON_HEIGHT = 1000
 SUPPORTED_ICON_FORMAT = ['.png']

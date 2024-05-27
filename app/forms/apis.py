@@ -8,8 +8,7 @@ from drf_spectacular.utils import extend_schema
 
 from core.services import (
     validate_icon_format,
-    validate_icon_size,
-    # add_to_form_group,
+    validate_icon_dimensions,
     get_form_groups,
     create_form_collection,
     validate_system_name
@@ -17,7 +16,7 @@ from core.services import (
 
 
 class CreateFormCollectionApi(APIView):
-    # permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated]
 
     class CreateFormCollectionInputSerializer(serializers.Serializer):
         name = serializers.CharField()
@@ -26,11 +25,11 @@ class CreateFormCollectionApi(APIView):
         validator = serializers.DictField(child=serializers.JSONField(), required=False)
         meta_data = serializers.DictField(child=serializers.JSONField(), required=False)
         color = serializers.CharField(required=False)
-        icon = serializers.ImageField(validators=(
-            # validate_icon_format,
-            validate_icon_size, 
+        icon = serializers.FileField(validators=(
+            validate_icon_format,
+            validate_icon_dimensions,
         ), required=False)
-        # user = serializers.HiddenField(default=serializers.CurrentUserDefault())
+        user = serializers.HiddenField(default=serializers.CurrentUserDefault())
 
     @extend_schema(request=CreateFormCollectionInputSerializer)
     def post(self, request: Request, *args, **kwargs) -> Response:
@@ -45,7 +44,8 @@ class CreateFormCollectionApi(APIView):
             validator=input_serializer.validated_data.get('validator'),
             meta_data=input_serializer.validated_data.get('meta_data'),
             color=input_serializer.validated_data.get('color'),
-            icon=input_serializer.validated_data.get('icon')
+            icon=input_serializer.validated_data.get('icon'),
+            user=input_serializer.validated_data.get('user')
         )
 
         return Response('OK')
