@@ -11,7 +11,7 @@ from rest_framework.exceptions import APIException
 from bson.objectid import ObjectId
 from bson.errors import InvalidId
 
-from pymongo import MongoClient
+from pymongo import MongoClient, GEOSPHERE
 
 MONGO_DB = settings.MONGO_DB_NAME
 
@@ -35,13 +35,19 @@ def connect_db(*, db: str) -> MongoClient:
         test_db = client['test']
         return test_db
 
-# def create_sys_name_collection(*, db: str, system_name: str):
-#     """
-#     Creating collections for each system names.
-#     """
-#     my_db = connect_db(db=db)
-#     system_name_collection = my_db[system_name]
-#     system_name_collection
+def create_sys_name_collection(*, db: str, system_name: str):
+    """
+    Creating collections for each system names.
+    """
+    my_db = connect_db(db=db)
+    system_name_collection = my_db[system_name]
+    system_name_collection.insert_one(
+        {'the_geom': {"type": "Point", "coordinates": [-73.856077, 40.848447]}}
+    ) # Inserting sample value and deleting it immediately
+    system_name_collection.create_index([("the_geom", GEOSPHERE)])
+    system_name_collection.delete_one(
+        {'the_geom': {"type": "Point", "coordinates": [-73.856077, 40.848447]}}
+    )
 
 def create_form_collection(
         *, db: str,  name: str, system_name: str, group: str, validator: list,
@@ -72,7 +78,7 @@ def create_form_collection(
             code='unique_constraint_system_name'
         )
 
-    # create_sys_name_collection(db=db, system_name=system_name)
+    create_sys_name_collection(db=db, system_name=system_name)
 
     data = {
         'name': name,

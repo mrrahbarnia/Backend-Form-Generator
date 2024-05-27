@@ -57,6 +57,7 @@ class CreateFormCollectionApi(APIView):
             status=status.HTTP_201_CREATED
         )
 
+
 class DeleteFormGroupsDocumentApi(APIView):
     """
     Delete a specific form from a form_group only by admin users.
