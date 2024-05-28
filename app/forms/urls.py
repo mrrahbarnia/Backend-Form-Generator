@@ -5,7 +5,29 @@ from . import apis
 app_name = 'forms'
 
 urlpatterns = [
-    path('form-collection/', apis.CreateFormCollectionApi.as_view(), name='form_collection'),
+    # ============ Forms collection URL's ============ #
+    path(
+        'form-collection/create/',
+        apis.CreateFormCollectionApi.as_view(),
+        name='form_collection'
+    ),
+    path(
+        'form-collection/delete/<str:id>/',
+        apis.DeleteFormCollectionApi.as_view(),
+        name='form_collection_delete'
+    ),
+    path(
+        'form-collection/list/',
+        apis.ListFormCollectionApi.as_view(),
+        name='form_collection_list'
+    ),
+    path(
+        'form-collection/update/<str:id>/',
+        apis.UpdateFormCollectionApi.as_view(),
+        name='form_collection_update'
+    ),
+
+    # ============ Form group collection URL's ============ #
     path('form-groups/list/', apis.FormGroupListApi.as_view(), name='form_group'),
     path(
         'form-groups/list/<str:group_name>/',
@@ -22,5 +44,4 @@ urlpatterns = [
         apis.UpdateFormGroupApi.as_view(),
         name='update_form_group'
     )
-    # path('form-group/', apis.AddToFormGroupCollectionApi.as_view())
 ]

@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers, status, permissions
 from rest_framework.response import Response
 from rest_framework.request import Request
@@ -14,10 +15,18 @@ from core.services import (
     get_forms_by_form_groups_name,
     delete_form_from_form_group,
     validate_system_name,
-    update_form_group_name
+    update_form_group_name,
+    list_form_collection,
+    delete_form_collection,
+    update_form_collection
+    # delete_form_collection
+)
+from .pagination import (
+    get_paginated_response_context,
+    LimitOffsetPagination
 )
 
-
+# ============ Forms collection API's ============ #
 class CreateFormCollectionApi(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
@@ -58,23 +67,107 @@ class CreateFormCollectionApi(APIView):
         )
 
 
+class DeleteFormCollectionApi(APIView):
+    """
+    Delete a form collection with provided id only by admin users.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request: Request, id: str = None, *args, **kwargs) -> Response:
+        delete_form_collection(db='prod', id=id, user=request.user)
+
+        return Response(
+            {'message': 'The form collection deleted successfully.'},
+            status=status.HTTP_204_NO_CONTENT
+        )
+
+
+class ListFormCollectionApi(APIView):
+    """
+    Listing all form collections...
+    Admin user => return all form collection regardless of owners.
+    Normal user => return all form collection belong to authenticated user.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    class Pagination(LimitOffsetPagination):
+        default_limit = int(settings.PAGINATION_DEFAULT_LIMIT)
+
+    class OutputListFormCollectionSerializer(serializers.Serializer):
+        _id = serializers.CharField()
+        name = serializers.CharField()
+        system_name = serializers.CharField()
+        group = serializers.CharField()
+        validator = serializers.DictField()
+        meta_data = serializers.DictField()
+        color = serializers.CharField()
+        icon = serializers.FileField()
+
+    @extend_schema(responses=OutputListFormCollectionSerializer)
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        forms = list_form_collection(db='prod', user=request.user)
+        return get_paginated_response_context(
+            pagination_class=self.Pagination,
+            serializer_class=self.OutputListFormCollectionSerializer,
+            queryset=forms,
+            request=request,
+            view=self
+        )
+
+
+class UpdateFormCollectionApi(APIView):
+    """
+    Updating a specific form collection...
+    Admin user => Can update every form collections.
+    Normal user => Can only update the form collections which belong to him.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    class UpdateFormCollectionSerializer(serializers.Serializer):
+        name = serializers.CharField(required=False)
+        system_name = serializers.CharField(required=False)
+        group = serializers.CharField(required=False)
+        validator = serializers.DictField(required=False)
+        meta_data = serializers.DictField(required=False)
+        color = serializers.CharField(required=False)
+        icon = serializers.FileField(required=False)
+
+    @extend_schema(
+            request=UpdateFormCollectionSerializer
+    )
+    def put(
+            self, request: Request, id: str | None = None, *args, **kwargs
+    ) -> Response:
+        input_serializer = self.UpdateFormCollectionSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        update_form_collection(
+            db='prod',
+            id=id, user=request.user,
+            updated_info=input_serializer.validated_data
+        )
+
+        return Response(
+            {'message': 'The form collection updated successfully'},
+            status=status.HTTP_200_OK
+        )
+
+
+# ============ Form group collection API's ============ #
 class DeleteFormGroupsDocumentApi(APIView):
     """
     Delete a specific form from a form_group only by admin users.
     """
     permission_classes = [permissions.IsAdminUser]
-    
+
     def delete(
             self, request: Request, group_name: str | None = None,
             id: int | None = None,  *args, **kwargs
     ) -> Response:
-
         delete_form_from_form_group(
             db='prod',
             group_name=group_name,
             id=id
         )
-
         return Response(
             {'message': 'Group deleted successfully'},
             status=status.HTTP_204_NO_CONTENT
@@ -128,7 +221,6 @@ class UpdateFormGroupApi(APIView):
             {'message': 'Group name updated in form_groups collection and all forms belong to this group.'},
             status=status.HTTP_200_OK
         )
-
 
 
 class FormGroupListApi(APIView):

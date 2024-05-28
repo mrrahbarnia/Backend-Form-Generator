@@ -159,3 +159,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 MAX_ICON_WIDTH = 1000
 MAX_ICON_HEIGHT = 1000
 SUPPORTED_ICON_FORMAT = ['.png']
+
+# Pagination default limit config
+PAGINATION_DEFAULT_LIMIT = 5
