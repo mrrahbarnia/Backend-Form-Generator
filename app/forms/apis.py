@@ -18,8 +18,12 @@ from core.services import (
     update_form_group_name,
     list_form_collection,
     delete_form_collection,
-    update_form_collection
-    # delete_form_collection
+    update_form_collection,
+    list_system_name_collections,
+    list_documents_from_system_name,
+    insert_doc_in_sys_name_coll,
+    delete_system_name_document,
+    update_system_name_document
 )
 from .pagination import (
     get_paginated_response_context,
@@ -28,13 +32,13 @@ from .pagination import (
 
 # ============ Forms collection API's ============ #
 class CreateFormCollectionApi(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     class CreateFormCollectionInputSerializer(serializers.Serializer):
         name = serializers.CharField()
         system_name = serializers.CharField(validators=(validate_system_name, ))
         group = serializers.CharField(required=False)
-        validator = serializers.DictField(child=serializers.JSONField(), required=False)
+        # validator = serializers.DictField(child=serializers.JSONField(), required=False)
         meta_data = serializers.DictField(child=serializers.JSONField(), required=False)
         color = serializers.CharField(required=False)
         icon = serializers.FileField(validators=(
@@ -71,10 +75,10 @@ class DeleteFormCollectionApi(APIView):
     """
     Delete a form collection with provided id only by admin users.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     def delete(self, request: Request, id: str = None, *args, **kwargs) -> Response:
-        delete_form_collection(db='prod', id=id, user=request.user)
+        delete_form_collection(db='prod', id=id)
 
         return Response(
             {'message': 'The form collection deleted successfully.'},
@@ -84,11 +88,9 @@ class DeleteFormCollectionApi(APIView):
 
 class ListFormCollectionApi(APIView):
     """
-    Listing all form collections...
-    Admin user => return all form collection regardless of owners.
-    Normal user => return all form collection belong to authenticated user.
+    List forms collection.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     class Pagination(LimitOffsetPagination):
         default_limit = int(settings.PAGINATION_DEFAULT_LIMIT)
@@ -117,15 +119,12 @@ class ListFormCollectionApi(APIView):
 
 class UpdateFormCollectionApi(APIView):
     """
-    Updating a specific form collection...
-    Admin user => Can update every form collections.
-    Normal user => Can only update the form collections which belong to him.
+    Update an existing forms collection only by admin users.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAdminUser]
 
     class UpdateFormCollectionSerializer(serializers.Serializer):
         name = serializers.CharField(required=False)
-        system_name = serializers.CharField(required=False)
         group = serializers.CharField(required=False)
         validator = serializers.DictField(required=False)
         meta_data = serializers.DictField(required=False)
@@ -142,7 +141,7 @@ class UpdateFormCollectionApi(APIView):
         input_serializer.is_valid(raise_exception=True)
         update_form_collection(
             db='prod',
-            id=id, user=request.user,
+            id=id,
             updated_info=input_serializer.validated_data
         )
 
@@ -151,6 +150,131 @@ class UpdateFormCollectionApi(APIView):
             status=status.HTTP_200_OK
         )
 
+
+# ============ System name collection API's ============ #
+class ListSystemNameCollectionApi(APIView):
+    """
+    Listing all system_name collections.
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request: Request, *args, **kwargs) -> Response:
+        collection_names = list_system_name_collections(db='prod')
+
+        return Response(collection_names, status=status.HTTP_200_OK)
+
+
+class InsertSystemNameDocumentApi(APIView):
+    """
+    Creating a document within a system_name based
+    on url parameter system_name collection.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    class CreateSystemNameCollectionSerializer(serializers.Serializer):
+        fields = serializers.DictField(child=serializers.JSONField())
+
+    @extend_schema(
+            request=CreateSystemNameCollectionSerializer
+    )
+    def post(
+            self, request: Request, collection_name: str | None = None, *args, **kwargs
+    ) -> Response:
+        input_serializer = self.CreateSystemNameCollectionSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        insert_doc_in_sys_name_coll(
+            db='prod',
+            collection_name=collection_name,
+            user_id=request.user.pk,
+            fields=input_serializer.validated_data
+
+        )
+
+        return Response('OK')
+
+
+class ListDocumentsFromSystemNameApi(APIView):
+    """
+    Listing all documents within a specific system name collection.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    class Pagination(LimitOffsetPagination):
+        default_limit = int(settings.PAGINATION_DEFAULT_LIMIT)
+
+    class OutputListDocumentSerializer(serializers.Serializer):
+        _id = serializers.CharField()
+        user_id = serializers.CharField()
+        fields = serializers.DictField()
+
+    @extend_schema(
+            responses=OutputListDocumentSerializer
+    )
+    def get(
+            self, request: Request, collection_name: str | None = None, *args, **kwargs
+    ) -> Response:
+        documents = list_documents_from_system_name(
+            db='prod', user=request.user, name=collection_name
+        )
+        return get_paginated_response_context(
+            pagination_class=self.Pagination,
+            serializer_class=self.OutputListDocumentSerializer,
+            queryset=documents,
+            request=request,
+            view=self
+        )
+
+
+class DeleteSystemNameDocumentApi(APIView):
+    """
+    Delete documents within a specific system collection.
+    Admin user can delete every documents but normal user can only
+    delete the documents which created by his own.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(
+            self, request: Request, collection_name: str, id: str, *args, **kwargs
+    ) -> Response:
+        delete_system_name_document(
+            db='prod',
+            user=request.user,
+            collection_name=collection_name,
+            id=id
+        )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class UpdateSystemNameDocumentApi(APIView):
+    """
+    Update documents within a specific system collection.
+    Admin user can update every documents but normal user can only
+    update the documents which created by his own.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    class UpdateSystemNameDocumentSerializer(serializers.Serializer):
+        fields = serializers.DictField(child=serializers.JSONField())
+    
+    @extend_schema(request=UpdateSystemNameDocumentSerializer)
+    def put(
+        self, request: Request, collection_name: str, id: str, *args, **kwargs
+    ) -> Response:
+        input_serializer = self.UpdateSystemNameDocumentSerializer(data=request.data)
+        input_serializer.is_valid(raise_exception=True)
+        update_system_name_document(
+            db='prod',
+            collection_name=collection_name,
+            user=request.user,
+            id=id,
+            fields=input_serializer.validated_data
+        )
+
+        return Response(
+            {'message': 'Document updated successfully.'},
+            status=status.HTTP_200_OK
+        )
 
 # ============ Form group collection API's ============ #
 class DeleteFormGroupsDocumentApi(APIView):

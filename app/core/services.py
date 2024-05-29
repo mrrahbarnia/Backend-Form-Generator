@@ -29,37 +29,190 @@ def connect_db(*, db: str) -> MongoClient:
         client = MongoClient(f"mongodb://{db_username}:{db_pass}@{db_host}:{db_port}/")
         my_db = client[MONGO_DB]
         return my_db
-    
+
     if db == 'test':
         client = MongoClient(f"mongodb://{db_username}:{db_pass}@{db_host}:{db_port}/")
         test_db = client['test']
         return test_db
 
 # =============== System name collection services =============== #
-def create_sys_name_collection(*, db: str, system_name: str):
+def create_sys_name_collection(*, db: str, system_name: str, validators: dict) -> None:
     """
     Creating collections for each system names.
     """
     my_db = connect_db(db=db)
     system_name_collection = my_db[system_name]
+    # Inserting sample value in the_geom field and deleting it immediately
     system_name_collection.insert_one(
         {'the_geom': {"type": "Point", "coordinates": [-73.856077, 40.848447]}}
-    ) # Inserting sample value and deleting it immediately
-    system_name_collection.create_index([("the_geom", GEOSPHERE)])
-    system_name_collection.delete_one(
-        {'the_geom': {"type": "Point", "coordinates": [-73.856077, 40.848447]}}
     )
+    system_name_collection.create_index([("the_geom", GEOSPHERE)])
+
+    my_query = {'the_geom': {"type": "Point", "coordinates": [-73.856077, 40.848447]}}
+    empty_value = {'$set': {'the_geom': []}}
+
+    system_name_collection.update_one(my_query, empty_value)
+
+def list_system_name_collections(*, db: str) -> list:
+    """
+    Listing all name of the system_name collections.
+    """
+    my_db = connect_db(db=db)
+    collection_names = my_db.list_collection_names()
+    try:
+        collection_names.remove('forms')
+        collection_names.remove('form_groups')
+        return collection_names
+    except ValueError:
+        # TODO: Logging if a client wants to list system names collection before creating any.
+        pass
+
+def list_documents_from_system_name(*, db: str, user: User, name: str) -> None:
+    """
+    Listing all documents withing a system name collection.
+    Admin user => Return all documents.
+    Normal user => Return only documents which created by the authenticated user.
+    """
+    # TODO: Change the functionality after authorization logic.
+    my_db = connect_db(db=db)
+    if name in my_db.list_collection_names():
+        system_name_collection = my_db[name]
+        system_name_documents = list()
+        if user.is_staff:
+            for document in system_name_collection.find({}):
+                system_name_documents.append(document)
+        else:
+            for document in system_name_collection.find({'user_id': user.pk}):
+                system_name_documents.append(document)
+        return system_name_documents
+    raise NotFound(
+        {'message': 'There is no collection with the provided name.'}
+    )
+
+def insert_doc_in_sys_name_coll(
+        *, db: str, collection_name: str, fields: dict, user_id: int
+) -> None:
+    my_db = connect_db(db=db)
+    if collection_name in my_db.list_collection_names():
+        # TODO: Validation exceptions
+        system_name_collection = my_db[collection_name]
+        inserted_data = {'user_id': user_id, 'fields': fields}
+        system_name_collection.insert_one(inserted_data)
+    else:
+        raise NotFound(
+            {'message': 'There is no collection with the provided system name.'}
+        )
+
+def delete_system_name_document(
+        *, db: str, user: User, collection_name: str, id: str
+) -> None:
+    """
+    Deleting a specific system name document with the provided id.
+    Admin user can delete every documents but normal user only
+    can delete documents which created by his own.
+    """
+    my_db = connect_db(db=db)
+    
+    if collection_name in my_db.list_collection_names():
+        service_name_collection = my_db[collection_name]
+        if user.is_staff:
+            try:
+                if service_name_collection.find_one({'_id': ObjectId(id)}):
+                    service_name_collection.delete_one({'_id': ObjectId(id)})
+                else:
+                    raise NotFound(
+                        {'message': 'There is no document with the provided id.'}
+                    )
+            except InvalidId:
+                raise NotFound(
+                    {'message': 'There is no document with the provided id.'}
+                )
+        else:
+            try:
+                if service_name_collection.find_one({'_id': ObjectId(id)}):
+                    if service_name_collection.find_one({'_id': ObjectId(id), 'user_id': user.pk}):
+                        service_name_collection.delete_one({'_id': ObjectId(id)})
+                    else:
+                        raise PermissionDenied(
+                            {"message": "You are not the owner of this document."}
+                        )
+                else:
+                    raise NotFound(
+                        {'message': 'There is no document with the provided id.'}
+                    )
+            except InvalidId:
+                raise NotFound(
+                    {'message': 'There is no document with the provided id.'}
+                )
+    else:
+        raise NotFound(
+            {'message': 'There is no collection with the provided collection name.'}
+        )
+
+def update_system_name_document(
+        *, db: str, collection_name: str, user: User, id: str, fields: dict
+) -> None:
+    """
+    Update document within system_name collection with the provided
+    collection name and document id.Admin users can update every document
+    but normal users can only update document which created by his own.
+    """
+    my_db = connect_db(db=db)
+
+    if collection_name in my_db.list_collection_names():
+        service_name_collection = my_db[collection_name]
+        if user.is_staff:
+            try:
+                if service_name_collection.find_one({'_id': ObjectId(id)}):
+                    service_name_collection.update_one({'_id': ObjectId(id)}, {'$set': fields})
+                else:
+                    raise NotFound(
+                        {'message': 'There is no document with the provided id.'}
+                    )
+            except InvalidId:
+                raise NotFound(
+                    {'message': 'There is no document with the provided id.'}
+                )
+        else:
+            try:
+                if service_name_collection.find_one({'_id': ObjectId(id)}):
+                    if service_name_collection.find_one({'_id': ObjectId(id), 'user_id': user.pk}):
+                        service_name_collection.update_one({'_id': ObjectId(id)}, {'$set': fields})
+                    else:
+                        raise PermissionDenied(
+                            {"message": "You are not the owner of this document."}
+                        )
+                else:
+                    raise NotFound(
+                        {'message': 'There is no document with the provided id.'}
+                    )
+            except InvalidId:
+                raise NotFound(
+                    {'message': 'There is no document with the provided id.'}
+                )
+    else:
+        raise NotFound(
+            {'message': 'There is no collection with the provided collection name.'}
+        )
 
 # =============== Forms collection services =============== #
 def create_form_collection(
-        *, db: str,  name: str, system_name: str, group: str, validator: list,
-        meta_data: list, color: str, icon: str, user: User
+        *, db: str,  name: str, system_name: str, group: str, validator: dict,
+        meta_data: dict, color: str, icon: str, user: User
 ):
     """
     Creating form collection.
     """
     # TODO: Create a storage for storing icons.
     my_db = connect_db(db=db)
+
+    # Set validator dict which given from Front-end client and set it for validator_schema
+    # validation_schema = {
+    #     "$jsonSchema": {
+    #         "bsonType": "object",
+    #         "properties": validator
+    #     }
+    # }
     forms_collection = my_db['forms']
     file_id = None
     object_id = ObjectId()
@@ -80,13 +233,14 @@ def create_form_collection(
             code='unique_constraint_system_name'
         )
 
-    create_sys_name_collection(db=db, system_name=system_name)
+    create_sys_name_collection(
+        db=db, system_name=system_name, validators=validator
+    )
 
     data = {
         'name': name,
         'system_name': system_name,
         'group': group,
-        'validator': validator,
         'meta_data': meta_data,
         'color': color,
         'icon': file_id,
@@ -96,110 +250,61 @@ def create_form_collection(
     object_id = object.inserted_id
     add_to_form_group(db=db, group=group, id=object_id)
 
-def delete_form_collection(*, db: str, id: str, user: User):
+def delete_form_collection(*, db: str, id: str) -> None:
     """
-    Check the user role and for:
-    Admin user => Delete every provided form collection by id.
-    Normal user => Delete the form collection provided by id only
-    if the owner of that collection is the authenticated user.
+    Delete forms collection with provided id.
     """
     my_db = connect_db(db=db)
     forms_collection = my_db['forms']
-    # TODO: ALter this method after any authorization logic
-    if user.is_staff:
-        try:
-            form_object = forms_collection.find_one({'_id': ObjectId(id)})
-            if form_object:
-                forms_collection.delete_one({'_id': ObjectId(id)})
-            else:
-                raise NotFound(
-                    {'message': 'There is no form collection with the provided id.'}
-                )
-        except InvalidId:
+    try:
+        form_object = forms_collection.find_one({'_id': ObjectId(id)})
+        if form_object:
+            forms_collection.delete_one({'_id': ObjectId(id)})
+        else:
             raise NotFound(
                 {'message': 'There is no form collection with the provided id.'}
             )
-    else:
-        try:
-            form_object = forms_collection.find_one({'_id': ObjectId(id)})
-            if form_object:
-                if user.pk == form_object['user_id']:
-                    forms_collection.delete_one({'_id': ObjectId(id)})
-                else:
-                    raise PermissionDenied(
-                        {'message': 'Your not the owner of the provided form collection.'}
-                    )
-            else:
-                raise NotFound(
-                    {'message': 'There is no form collection with the provided id.'}
-                )
-        except InvalidId:
-            raise NotFound(
-                {'message': 'There is no form collection with the provided id.'}
-            )
+    except InvalidId:
+        raise NotFound(
+            {'message': 'There is no form collection with the provided id.'}
+        )
 
 def list_form_collection(*, db: str, user: User):
     """
-    Check the user role and for:
-    Admin user => Return all form collections.
-    Normal user => Return all form collections belong to this user.
+    List forms collection.
     """
     my_db = connect_db(db=db)
     forms_collection = my_db['forms']
     forms_collection_list = list()
-    # TODO: ALter this method after any authorization logic
-    if user.is_staff:
-        for document in forms_collection.find({}):
-            forms_collection_list.append(document)
-        return forms_collection_list
-    else:
-        for document in forms_collection.find({'user_id': user.pk}):
-            forms_collection_list.append(document)
-        return forms_collection_list
+    for document in forms_collection.find({}):
+        forms_collection_list.append(document)
+    return forms_collection_list
 
-def update_form_collection(*, db: str, id: str, user: User, updated_info: dict):
+def update_form_collection(*, db: str, id: str, updated_info: dict):
     """
-    Check the user role and for:
-    Admin user => Can update every form collection with the provided id.
-    Normal user => Can update only form collection which belong to the authenticated user.
+    Update an existing forms collection.
+    Only the system name field cannot change.
     """
     my_db = connect_db(db=db)
     forms_collection = my_db['forms']
-    # TODO: ALter this method after any authorization logic
-    if user.is_staff:
-        try:
-            form_object = forms_collection.find_one({'_id': ObjectId(id)})
-            if form_object:
+    try:
+        form_object = forms_collection.find_one({'_id': ObjectId(id)})
+        if form_object:
+            if updated_info.get('system_name'):
+                raise ValidationError(
+                    {'message': 'System name field cannot change.'}
+                )
+            else:
                 forms_collection.update_one({'_id': ObjectId(id)}, {'$set': updated_info})
                 return forms_collection.find_one({'_id': ObjectId(id)})
-            else:
-                raise NotFound(
-                    {'message': 'There is no form with the provided id.'}
-                )
-        except InvalidId:
+        else:
             raise NotFound(
-                    {'message': 'There is no form with the provided id.'}
-                )
-    else:
-        try:
-            form_object = forms_collection.find_one({'_id': ObjectId(id)})
-            if form_object:
-                if user.pk == form_object['user_id']:
-                    forms_collection.update_one({'_id': ObjectId(id)}, {'$set': updated_info})
-                    return forms_collection.find_one({'_id': ObjectId(id)})
-                else:
-                    raise PermissionDenied(
-                        {'message': 'Your not the owner of the provided form collection.'}
-                    )
-            else:
-                raise NotFound(
-                    {'message': 'There is no form with the provided id.'}
-                )
-        except InvalidId:
-            raise NotFound(
-                    {'message': 'There is no form with the provided id.'}
-                )
-
+                {'message': 'There is no form with the provided id.'}
+            )
+    except InvalidId:
+        raise NotFound(
+                {'message': 'There is no form with the provided id.'}
+            )
 
 
 # =============== Form groups collection services =============== #

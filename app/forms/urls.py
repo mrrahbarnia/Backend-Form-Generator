@@ -27,6 +27,33 @@ urlpatterns = [
         name='form_collection_update'
     ),
 
+    # ============ System_name collection URL's ============ #
+    path(
+        'system-name/list/',
+        apis.ListSystemNameCollectionApi.as_view(),
+        name='system_name_list'
+    ),
+    path(
+        'system-name/<str:collection_name>/',
+        apis.ListDocumentsFromSystemNameApi.as_view(),
+        name='system_name_documents_list'
+    ),
+    path(
+        'system-name/insert/<str:collection_name>/',
+        apis.InsertSystemNameDocumentApi.as_view(),
+        name='system_name_insert_document'
+    ),
+    path(
+        'system-name/delete/<str:collection_name>/<str:id>/',
+        apis.DeleteSystemNameDocumentApi.as_view(),
+        name='system_name_delete_document'
+    ),
+    path(
+        'system-name/update/<str:collection_name>/<str:id>/',
+        apis.UpdateSystemNameDocumentApi.as_view(),
+        name='system_name_update_document'
+    ),
+
     # ============ Form group collection URL's ============ #
     path('form-groups/list/', apis.FormGroupListApi.as_view(), name='form_group'),
     path(
