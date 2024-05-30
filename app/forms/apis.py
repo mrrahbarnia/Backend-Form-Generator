@@ -38,7 +38,7 @@ class CreateFormCollectionApi(APIView):
         name = serializers.CharField()
         system_name = serializers.CharField(validators=(validate_system_name, ))
         group = serializers.CharField(required=False)
-        # validator = serializers.DictField(child=serializers.JSONField(), required=False)
+        validator = serializers.DictField(child=serializers.JSONField(), required=False)
         meta_data = serializers.DictField(child=serializers.JSONField(), required=False)
         color = serializers.CharField(required=False)
         icon = serializers.FileField(validators=(
@@ -100,14 +100,13 @@ class ListFormCollectionApi(APIView):
         name = serializers.CharField()
         system_name = serializers.CharField()
         group = serializers.CharField()
-        validator = serializers.DictField()
         meta_data = serializers.DictField()
         color = serializers.CharField()
         icon = serializers.FileField()
 
     @extend_schema(responses=OutputListFormCollectionSerializer)
     def get(self, request: Request, *args, **kwargs) -> Response:
-        forms = list_form_collection(db='prod', user=request.user)
+        forms = list_form_collection(db='prod')
         return get_paginated_response_context(
             pagination_class=self.Pagination,
             serializer_class=self.OutputListFormCollectionSerializer,
@@ -126,7 +125,7 @@ class UpdateFormCollectionApi(APIView):
     class UpdateFormCollectionSerializer(serializers.Serializer):
         name = serializers.CharField(required=False)
         group = serializers.CharField(required=False)
-        validator = serializers.DictField(required=False)
+        # validator = serializers.DictField(required=False)
         meta_data = serializers.DictField(required=False)
         color = serializers.CharField(required=False)
         icon = serializers.FileField(required=False)
@@ -187,10 +186,12 @@ class InsertSystemNameDocumentApi(APIView):
             collection_name=collection_name,
             user_id=request.user.pk,
             fields=input_serializer.validated_data
-
         )
 
-        return Response('OK')
+        return Response(
+            {'message': 'Document inserted successfully'},
+            status=status.HTTP_201_CREATED
+        )
 
 
 class ListDocumentsFromSystemNameApi(APIView):
@@ -214,7 +215,7 @@ class ListDocumentsFromSystemNameApi(APIView):
             self, request: Request, collection_name: str | None = None, *args, **kwargs
     ) -> Response:
         documents = list_documents_from_system_name(
-            db='prod', user=request.user, name=collection_name
+            db='prod', user=request.user, collection_name=collection_name
         )
         return get_paginated_response_context(
             pagination_class=self.Pagination,

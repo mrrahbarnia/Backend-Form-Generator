@@ -1,6 +1,7 @@
 import re
 import gridfs
 import uuid
+from pprint import pprint
 
 from pathlib import Path
 from django.conf import settings
@@ -10,7 +11,7 @@ from django.core.files.images import get_image_dimensions
 from rest_framework.exceptions import PermissionDenied, ValidationError, NotFound
 from bson.objectid import ObjectId
 from bson.errors import InvalidId
-
+from pymongo.errors import WriteError
 from pymongo import MongoClient, GEOSPHERE
 
 MONGO_DB = settings.MONGO_DB_NAME
@@ -41,17 +42,20 @@ def create_sys_name_collection(*, db: str, system_name: str, validators: dict) -
     Creating collections for each system names.
     """
     my_db = connect_db(db=db)
-    system_name_collection = my_db[system_name]
-    # Inserting sample value in the_geom field and deleting it immediately
-    system_name_collection.insert_one(
-        {'the_geom': {"type": "Point", "coordinates": [-73.856077, 40.848447]}}
-    )
+    validation_schema = {
+        "$jsonSchema": {
+            "bsonType": "object",
+            "properties": {
+                "fields": {
+                    "bsonType": "object",
+                    "properties": validators
+                }
+            }
+        }
+    }
+    pprint(validation_schema)
+    system_name_collection = my_db.create_collection(system_name, validator=validation_schema)
     system_name_collection.create_index([("the_geom", GEOSPHERE)])
-
-    my_query = {'the_geom': {"type": "Point", "coordinates": [-73.856077, 40.848447]}}
-    empty_value = {'$set': {'the_geom': []}}
-
-    system_name_collection.update_one(my_query, empty_value)
 
 def list_system_name_collections(*, db: str) -> list:
     """
@@ -67,7 +71,7 @@ def list_system_name_collections(*, db: str) -> list:
         # TODO: Logging if a client wants to list system names collection before creating any.
         pass
 
-def list_documents_from_system_name(*, db: str, user: User, name: str) -> None:
+def list_documents_from_system_name(*, db: str, user: User, collection_name: str) -> None:
     """
     Listing all documents withing a system name collection.
     Admin user => Return all documents.
@@ -75,8 +79,8 @@ def list_documents_from_system_name(*, db: str, user: User, name: str) -> None:
     """
     # TODO: Change the functionality after authorization logic.
     my_db = connect_db(db=db)
-    if name in my_db.list_collection_names():
-        system_name_collection = my_db[name]
+    if collection_name in my_db.list_collection_names():
+        system_name_collection = my_db[collection_name]
         system_name_documents = list()
         if user.is_staff:
             for document in system_name_collection.find({}):
@@ -93,11 +97,17 @@ def insert_doc_in_sys_name_coll(
         *, db: str, collection_name: str, fields: dict, user_id: int
 ) -> None:
     my_db = connect_db(db=db)
+    print(fields)
     if collection_name in my_db.list_collection_names():
-        # TODO: Validation exceptions
         system_name_collection = my_db[collection_name]
-        inserted_data = {'user_id': user_id, 'fields': fields}
-        system_name_collection.insert_one(inserted_data)
+        inserted_data = {'user_id': user_id, 'the_geom': [], **fields}
+        pprint(inserted_data)
+        try:
+            system_name_collection.insert_one(inserted_data)
+        except WriteError as e:
+            raise ValidationError(
+                {'message': f'{e}'}
+            )
     else:
         raise NotFound(
             {'message': 'There is no collection with the provided system name.'}
@@ -206,13 +216,6 @@ def create_form_collection(
     # TODO: Create a storage for storing icons.
     my_db = connect_db(db=db)
 
-    # Set validator dict which given from Front-end client and set it for validator_schema
-    # validation_schema = {
-    #     "$jsonSchema": {
-    #         "bsonType": "object",
-    #         "properties": validator
-    #     }
-    # }
     forms_collection = my_db['forms']
     file_id = None
     object_id = ObjectId()
@@ -269,7 +272,7 @@ def delete_form_collection(*, db: str, id: str) -> None:
             {'message': 'There is no form collection with the provided id.'}
         )
 
-def list_form_collection(*, db: str, user: User):
+def list_form_collection(*, db: str):
     """
     List forms collection.
     """

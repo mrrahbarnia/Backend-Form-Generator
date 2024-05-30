@@ -14,7 +14,10 @@ from ..services import (
     create_form_collection,
     delete_form_from_form_group,
     get_forms_by_form_groups_name,
-    update_form_group_name
+    update_form_group_name,
+    delete_form_collection,
+    list_form_collection,
+    update_form_collection
 
 )
 
@@ -25,7 +28,8 @@ CREATE_FORM_COLLECTION_UTL = reverse('forms:form_collection')
 
 class TestServices:
 
-    def test_create_form_collection_services_successfully(self) -> None:
+    # =============== Forms collection Tests =============== #
+    def test_crud_operations_form_collection_services(self) -> None:
         """
         Test creating forms and form_groups successfully.
         """
@@ -55,18 +59,51 @@ class TestServices:
             icon=None,
             user=sample_user
         )
+        create_form_collection(
+            db='test',
+            name="Sample3",
+            system_name="sample3",
+            group="sample1",
+            validator=[{'max_length': '25'}, {'min_length': '8'}],
+            meta_data=[{'action': 'POST'}],
+            color='blue',
+            icon=None,
+            user=sample_user
+        )
         my_db: MongoClient = connect_db(db='test')
         forms_collection = my_db['forms']
         forms_group_collection = my_db['form_groups']
         
-        assert forms_collection.count_documents({}) == 2
+        assert len(list_form_collection(db='test')) == 3
+        assert forms_collection.count_documents({}) == 3
         assert forms_group_collection.count_documents({}) == 2
         # Test listing all form_groups
         assert len(get_form_groups(db='test')) == 2
 
+        form_obj = forms_collection.find_one({'name': 'Sample2'})
+        delete_form_collection(db='test', id=str(form_obj['_id']))
+
+        assert forms_collection.count_documents({}) == 2
+
+        form_obj = forms_collection.find_one({'name': 'Sample'})
+        update_form_collection(
+            db='test', id=str(form_obj['_id']), updated_info={'name': 'edited'}
+        )
+        assert forms_collection.find_one({'name': 'edited'}) is not None
+        assert forms_collection.find_one({'name': 'Sample'}) is None
+
+
         forms_collection.delete_many({})
         forms_group_collection.delete_many({})
-        
+    
+    # =============== System name collections Tests =============== #
+    def test_crud_operations_service_name_collections(self) -> None:
+        pass
+
+    
+
+
+    # =============== Validation Tests =============== #  
     def test_unique_constraint_on_name_field(self) -> None:
         """
         Test checking unique constraint on field name.
@@ -148,7 +185,7 @@ class TestServices:
         forms_collection.delete_many({})
         forms_group_collection.delete_many({})
     
-    def test_system_name_conventional_mongo_names(self, normal_client: APIClient) -> None:
+    def test_system_name_conventional_mongo_names(self, admin_client: APIClient) -> None:
         """
         Test with the system_name which not
         a standard mongoDB convention name.
@@ -165,10 +202,10 @@ class TestServices:
                 'name': 'sample',
                 'system_name': name,
             }
-            response: Response = normal_client.post(CREATE_FORM_COLLECTION_UTL, payload, format='json')
-
+            response: Response = admin_client.post(CREATE_FORM_COLLECTION_UTL, payload, format='json')
             assert response.status_code == status.HTTP_400_BAD_REQUEST
     
+    # =============== Forms groups collection Tests =============== #
     def test_delete_form_groups_and_related_forms(self) -> None:
         """
         Test deleting a specific form group and set the

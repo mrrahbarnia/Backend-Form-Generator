@@ -35,7 +35,7 @@ def admin_client():
     """
     client = APIClient()
     admin_user = User.objects.create_superuser(
-        email='admin',
+        username='admin',
         password='1234@example.com'
     )
     client.force_authenticate(user=admin_user)
